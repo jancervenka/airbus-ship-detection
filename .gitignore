@@ -1,0 +1,7 @@
+data/train_v2/*.jpg
+*.ipynb_checkpoints
+__pycache__
+.vscode
+model_files
+notebooks
+.pytest_cache
