@@ -4,7 +4,7 @@
 
 import pkg_resources
 
-__module_name__ = 'dj_tagging'
+__module_name__ = 'asdc'
 
 try:
     __version__ = pkg_resources.get_distribution(__module_name__).version

@@ -2,61 +2,98 @@
 # -*- coding: utf-8 -*-
 # 2020, Jan Cervenka
 
-from tensorflow.keras.optimizers import RMSprop
-from tensorflow.keras.models import Sequential
-from tensorflow.keras import regularizers
-from tensorflow.keras.layers import (Dense, Activation, Conv2D,
-                                     MaxPooling2D, Flatten, Dropout)
+from tensorflow.python.keras import Input
+from tensorflow.python.keras.optimizers import RMSprop
+from tensorflow.python.keras.models import Model  # , Sequential
+# from tensorflow.python.keras.wrappers.scikit_learn import KerasClassifier
+from tensorflow.python.keras.regularizers import l2
+from tensorflow.python.keras.layers import (Dense, Activation, Conv2D,
+                                            MaxPooling2D, Flatten, Dropout)
 
 
 NUM_CLASSES = 2
+L2_LAMBDA = 0.01
+DROPOUT = 0.25
 
 
-class ShipDetection:
+class MaskDetection:
     """
-    Class for binary image classification.
     """
 
     @staticmethod
-    def _create_model(image_shape, num_classes=NUM_CLASSES):
+    def _create_model(image_shape, n_output):
         """
-        Creates a neural model.
-
-        :param image_shape: shape of the input images
-        :param num_classes: number of classes in the training set
-        :return: compiled keras model
         """
 
-        optimizer = RMSprop(learning_rate=0.0001, decay=1e-6)
+        optimizer = RMSprop(lr=0.0001, decay=1e-6)
+        image_shape = image_shape + (1,) if len(image_shape) < 3 else image_shape
 
-        if len(image_shape) == 2:
-            image_shape += (1,)
+        i = m = Input(shape=image_shape)
 
-        model = Sequential()
-        model.add(Conv2D(32, (3, 3), padding='same',
-                  input_shape=image_shape, kernel_regularizer=regularizers.l2(0.01)))
+        for n_filters in (32, 64):
+            m = Conv2D(n_filters, (3, 3), padding='same', kernel_regularizer=l2(L2_LAMBDA))(m)
+            m = Activation('relu')(m)
+            m = Conv2D(n_filters, (3, 3), kernel_regularizer=l2(L2_LAMBDA))(m)
+            m = Activation('relu')(m)
+            m = MaxPooling2D(pool_size=(2, 2))(m)
+            m = Dropout(DROPOUT)(m)
 
-        model.add(Activation('relu'))
-        model.add(Conv2D(32, (3, 3), kernel_regularizer=regularizers.l2(0.01)))
-        model.add(Activation('relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
+        m = Flatten()(m)
+        m = Dense(512, kernel_regularizer=l2(L2_LAMBDA))(m)
+        m = Activation('relu')(m)
+        m = Dropout(0.5)(m)
+        m = Dense(n_output)(m)
+        o = Activation('sigmoid')(m)
 
-        model.add(Conv2D(64, (3, 3), padding='same', kernel_regularizer=regularizers.l2(0.01)))
-        model.add(Activation('relu'))
-        model.add(Conv2D(64, (3, 3), kernel_regularizer=regularizers.l2(0.01)))
-        model.add(Activation('relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-
-        model.add(Flatten())
-        model.add(Dense(512, kernel_regularizer=regularizers.l2(0.01)))
-        model.add(Activation('relu'))
-        model.add(Dropout(0.5))
-        model.add(Dense(num_classes))
-        model.add(Activation('softmax'))
-        model.compile(optimizer=optimizer,
-                      loss='categorical_crossentropy',
+        model = Model(i, o)
+        model.compile(optimizer=optimizer, loss='binary_crossentropy',
                       metrics=['accuracy'])
 
         return model
+
+#     @staticmethod
+#     def _create_model_(image_shape, num_classes=NUM_CLASSES):
+#         """
+#         """
+
+#         print('A')
+
+#         optimizer = RMSprop(lr=0.0001, decay=1e-6)
+
+#         if len(image_shape) == 2:
+#             image_shape += (1,)
+
+#         model = Sequential()
+#         model.add(Conv2D(32, (3, 3), padding='same',
+#                   input_shape=image_shape, kernel_regularizer=l2(0.01)))
+
+#         model.add(Activation('relu'))
+#         model.add(Conv2D(32, (3, 3), kernel_regularizer=l2(0.01)))
+#         model.add(Activation('relu'))
+#         model.add(MaxPooling2D(pool_size=(2, 2)))
+#         model.add(Dropout(0.25))
+
+#         model.add(Conv2D(64, (3, 3), padding='same', kernel_regularizer=l2(0.01)))
+#         model.add(Activation('relu'))
+#         model.add(Conv2D(64, (3, 3), kernel_regularizer=l2(0.01)))
+#         model.add(Activation('relu'))
+#         model.add(MaxPooling2D(pool_size=(2, 2)))
+#         model.add(Dropout(0.25))
+
+#         model.add(Flatten())
+#         model.add(Dense(512, kernel_regularizer=l2(0.01)))
+#         model.add(Activation('relu'))
+#         model.add(Dropout(0.5))
+#         model.add(Dense(num_classes))
+#         model.add(Activation('softmax'))
+#         model.compile(optimizer=optimizer,
+#                       loss='categorical_crossentropy',
+#                       metrics=['accuracy'])
+
+#         return model
+
+
+# if __name__ == '__main__':
+#     from tensorflow.python.keras.utils import plot_model
+#     plot_model(MaskDetection._create_model_((128, 128, 3), 2), to_file='/home/honza/m1.png')
+#     plot_model(MaskDetection._create_model((128, 128, 3), 1), to_file='/home/honza/m2.png')

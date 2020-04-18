@@ -3,9 +3,9 @@
 # 2020, Jan Cervenka
 
 import numpy as np
-from tensorflow.keras.utils import to_categorical
-from ..core.io import load_image, ImageBatchGenerator
+import pandas as pd
 from unittest import TestCase, mock, main
+from ..core.io import load_image, ImageBatchGenerator
 
 
 def _mock_imread(image_file_path):
@@ -18,7 +18,7 @@ def _mock_imread(image_file_path):
              numeric image name
     """
 
-    image = np.zeros(shape=(5, 5, 3))
+    image = np.zeros(shape=(16, 16, 3))
     return image + float(image_file_path.split('/')[-1])
 
 
@@ -43,7 +43,7 @@ class LoadImageTest(TestCase):
         and dimensions are correctly expanded.
         """
 
-        result = load_image('test', scale=0.5)
+        result = load_image('test', size=(10, 10))
         expected = np.zeros(shape=(10, 10, 1))
         np.testing.assert_array_equal(result, expected)
 
@@ -61,14 +61,16 @@ class ImageBatchGeneratorTest(TestCase):
         """
 
         image_ids = map(str, range(1, 7))
-        self._image_labels = {k: v for k, v in zip(image_ids, [0, 1] * 3)}
+
+        self._image_rle_masks = {k: v for k, v in zip(image_ids, [np.nan, '1 4 7 2'] * 3)}
 
         self._gen = ImageBatchGenerator(
             image_directory='test',
-            image_labels=self._image_labels,
+            image_rle_masks=self._image_rle_masks,
             batch_size=4,
             shuffle=False,
-            image_scale=None)
+            image_size=None,
+            mask_size=(4, 4))
 
     def test_len(self):
         """
@@ -108,6 +110,21 @@ class ImageBatchGeneratorTest(TestCase):
         expected = np.mean([i / 255 for i in range(1, 7)])
         self.assertAlmostEqual(result, expected, places=6)
 
+    def test_get_image_mask(self):
+        """
+        Tests that `io.ImageBatchGenerator._get_image_mask`
+        produces the correct target image mask.
+        """
+
+        for test_case_rle in (np.nan, '2 42'):
+
+            expected = np.zeros(shape=(4, 4))
+            if not pd.isnull(test_case_rle):
+                expected[0, 0] = 1
+
+            result = self._gen._get_image_mask(test_case_rle)
+            np.testing.assert_array_equal(result, expected)
+
     @mock.patch('cv2.imread', _mock_imread)
     def test_getitem(self):
         """
@@ -122,14 +139,18 @@ class ImageBatchGeneratorTest(TestCase):
             :param n: number of expected images
             :param id_offset: start of the id range
                               of the expected images
-            :return: expected x and y arrays 
+            :return: expected x and y arrays
             """
 
-            expected_x = np.zeros(shape=(n, 5, 5, 3))
+            expected_x = np.zeros(shape=(n, 16, 16, 3))
             for i in range(n):
                 expected_x[i, :, :, :] = (id_offset + i + 1) / 255
 
-            expected_y = to_categorical(np.array([0, 1] * (n // 2)))
+            expected_y_0 = np.zeros(shape=(4, 4))
+            expected_y_1 = np.zeros(shape=(4, 4))
+            expected_y_1[0, 0] = 1
+            expected_y = np.array([expected_y_0.ravel(), expected_y_1.ravel()] * (n // 2))
+
             return expected_x, expected_y
 
         for i, n, offset in ((0, 4, 0), (1, 2, 4)):
@@ -155,7 +176,8 @@ class ImageBatchGeneratorShuffleTest(TestCase):
 
         gen = ImageBatchGenerator(
             image_directory=None,
-            image_labels={'1': 0, '2': 1, '3': 0})
+            image_rle_masks={'1': np.nan, '2': np.nan, '3': '1 3'},
+            mask_size=(4, 4))
 
         indexes_before = gen._indexes
         gen.on_epoch_end()

@@ -8,91 +8,96 @@ import numpy as np
 import pandas as pd
 import multiprocessing as mp
 from datetime import datetime
-from configparser import ConfigParser
 from sklearn.model_selection import train_test_split
-from .utils import get_image_labels
-from .constants import NUM_CLASSES, IMAGE_LABEL_COL, IMAGE_ID_COL, SCALE
-from .classifier import ShipDetection
+from .utils import get_image_rle_masks
+from .constants import RLE_MASK_COL, IMAGE_ID_COL, IMAGE_SIZE, MASK_SIZE
+from .classifier import MaskDetection
 from .io import ImageBatchGenerator
 
 
-class BalancedImageLabels:
+class BalancedImageRleMasks:
     """
     Class containing functions for downsampling
-    and balancing `image_labels`.
+    and balancing the dataset.
     """
 
     @staticmethod
-    def _get_class_image_labels(image_labels, label, sample_size):
+    def _sample_class(image_rle_masks, select_positive, sample_size):
         """
-        Selects one class from `image_labels`.
+        Selects one class from `image_rle_masks`.
 
-        :param image_labels: dataframe containing image label for each id
-        :param label: selected class
+        :param image_rle_masks: dataframe containing an image mask for each id
+        :param select_positive: positive (non-zero) masks are selected
+                                if `True`, otherwise negative
         :sample_size: number of class samples to select
-        :return image_labels: filtered `image_labels`
+        :return image_masks: filtered `image_masks`
         """
 
-        mask = image_labels[IMAGE_LABEL_COL] == label
-        return image_labels[mask].sample(sample_size)
+        row_mask = image_rle_masks[RLE_MASK_COL].isna()
+        if select_positive:
+            row_mask = ~row_mask
+
+        return image_rle_masks[row_mask].sample(sample_size)
 
     @classmethod
-    def _balance(cls, image_labels, sample_size):
+    def _balance(cls, image_rle_masks, sample_size, pos_share):
         """
-        Downsamples and balances `image_labels`.
+        Downsamples and balances `image_rle_masks`.
 
-        :param image_labels: dataframe containing image label for each id
+        :param image_rle_masks: dataframe containing an image mask for each id
         :param sample_size: size of the downsampled set
-        :return: balanced and downsampled `image_labels`
+        :return: balanced and downsampled `image_masks`
         """
 
-        class_samples = sample_size // NUM_CLASSES
-        balanced_image_labels = [
-            cls._get_class_image_labels(image_labels, label, class_samples)
-            for label in [0, 1]]
+        positive_samples = round(sample_size * pos_share)
+        negative_samples = sample_size - positive_samples
 
-        return pd.concat(balanced_image_labels, ignore_index=True)
+        balanced_image_masks = [
+            cls._sample_class(image_rle_masks, True, positive_samples),
+            cls._sample_class(image_rle_masks, False, negative_samples)]
+
+        return pd.concat(balanced_image_masks, ignore_index=True)
 
     @staticmethod
-    def _split(image_labels):
+    def _split(image_rle_masks):
         """
-        Splits `image_labels` to training, validation, and test sets.
+        Splits `image_rle_masks` to training, validation, and test sets.
 
-        :param image_labels: dataframe containing image label for each id
+        :param image_rle_masks: dataframe containing an image mask for each id
         :return: tuple of three dataframes containing the
                  training, validation, and test sets
         """
 
-        train, test = train_test_split(image_labels)
+        train, test = train_test_split(image_rle_masks)
         train, val = train_test_split(train)
         return train, val, test
 
     @staticmethod
-    def _to_dict(image_labels):
+    def _to_dict(image_rle_masks):
         """
-        Converts `image_labels` dataframe to a dictionary
+        Converts `image_rle_masks` dataframe to a dictionary
 
-        :param image_labels: dataframe containing image label for each id
-        :return: `image_labels` as a dictionary
+        :param image_rle_masks: dataframe containing an image mask for each id
+        :return: `image_rle_masks` as a dictionary
         """
 
-        return image_labels.set_index(IMAGE_ID_COL).to_dict()[IMAGE_LABEL_COL]
+        return image_rle_masks.set_index(IMAGE_ID_COL).to_dict()[RLE_MASK_COL]
 
     @classmethod
-    def create(cls, image_labels, sample_size, as_dict=True):
+    def create(cls, image_rle_masks, sample_size, pos_share=0.5, as_dict=True):
         """
-        Downsamples `image_labels`, balance the classes
+        Downsamples `image_rle_masks`, balance the classes
         and splits the data into training, validation, and test.
 
-        :param image_labels: dataframe containing image label for each id
+        :param image_rle_masks: dataframe containing an image mask for each id
         :param sample_size: size of the downsampled set
-        :param as_dict: if `True` result is returned as a
-                        tuple of dictionaries
-        :return: tuple of three dataframes or dictionaries
-                 containing the training, validation, and test image labels
+        :param pos_share: share of the non-zero masks
+        :param as_dict: if `True` result is returned as a tuple of dictionaries
+        :return: tuple of three dataframes or dictionaries containing the
+                 training, validation, and test image masks
         """
 
-        splits = cls._split(cls._balance(image_labels, sample_size))
+        splits = cls._split(cls._balance(image_rle_masks, sample_size, pos_share))
 
         if as_dict:
             return tuple(map(cls._to_dict, splits))
@@ -105,18 +110,15 @@ class Pipeline:
     Class containing model trainig pipeline.
     """
 
-    def __init__(self, args):
+    def __init__(self, cfg):
         """
         Initiates the class.
 
-        :param args: `argparse.ArgumentParser` instance
+        :param cfg: loaded config in `configparser.ConfigParser` instance
         """
 
         np.random.seed(0)
-
-        self._args = args
-        self._cfg = ConfigParser()
-        self._cfg.read(self._args.config)
+        self._cfg = cfg
 
     def _init_logger(self):
         """
@@ -133,21 +135,22 @@ class Pipeline:
             level=logging.INFO,
             handlers=[logging.StreamHandler(), logging.FileHandler(log_file_path)])
 
-    def _get_image_labels(self):
+    def _get_image_rle_masks(self):
         """
         """
 
-        return get_image_labels(
+        return get_image_rle_masks(
             pd.read_csv(self._cfg.get('data', 'ground_truth_file')))
 
-    def _init_generator(self, image_labels):
+    def _init_generator(self, image_masks):
         """
         """
 
         return ImageBatchGenerator(
             image_directory=self._cfg.get('data', 'image_directory'),
-            image_labels=image_labels,
-            image_scale=SCALE)
+            image_rle_masks=image_masks,
+            mask_size=MASK_SIZE,
+            image_size=IMAGE_SIZE)
 
     def _train(self):
         """
@@ -155,24 +158,28 @@ class Pipeline:
 
         logging.info('Hello')
 
-        labels_train, labels_val, label_test = BalancedImageLabels.create(
-            image_labels=self._get_image_labels(),
-            sample_size=self._cfg.getint('training', 'sample_size'))
+        xy_train, xy_val, xy_test = BalancedImageRleMasks.create(
+            image_rle_masks=self._get_image_rle_masks(),
+            sample_size=self._cfg.getint('training', 'sample_size'),
+            pos_share=0.5)
 
-        generator_train = self._init_generator(labels_train)
-        generator_val = self._init_generator(labels_val)
+        generator_train = self._init_generator(xy_train)
+        generator_val = self._init_generator(xy_val)
 
         logging.info('Generators ready.')
 
-        model = ShipDetection._create_model(image_shape=(128, 128, 3))
+        # TODO: change model to sigmoid/binary cross entropy
+        # TODO: pos share from config
+        n_output = MASK_SIZE[0] ** 2
+        model = MaskDetection._create_model(image_shape=(128, 128, 3), n_output=n_output)
         model.fit_generator(
             generator=generator_train,
             validation_data=generator_val,
             use_multiprocessing=True,
             workers=mp.cpu_count(),
             verbose=1,
-            epochs=20)
-        model.save('/home/honza/airbus-ship-detection/model_files/asdc.h5')
+            epochs=15)
+        model.save('/home/honza/airbus-ship-detection/model_files/asdc_1_2000.h5')
 
     def run(self):
         """

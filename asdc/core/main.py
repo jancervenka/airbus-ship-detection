@@ -3,6 +3,7 @@
 # 2020, Jan Cervenka
 
 import argparse
+from configparser import ConfigParser
 from .training import Pipeline
 from .. import version
 
@@ -26,14 +27,27 @@ def _get_main_argparser():
     return parser
 
 
+def _get_config(args):
+    """
+    Loads config file
+
+    :param args: `argparse.ArgumentParser` instance
+    :return: `configparser.ConfigParser` instance
+    """
+
+    cfg = ConfigParser()
+    cfg.read(args.config)
+    return cfg
+
+
 def run():
     """
     Runs the entry point
     """
 
     args = _get_main_argparser().parse_args()
-
-    Pipeline(args).run()
+    cfg = _get_config(args)
+    Pipeline(cfg).run()
 
 
 if __name__ == '__main__':

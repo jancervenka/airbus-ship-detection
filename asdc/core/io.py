@@ -5,18 +5,18 @@
 import os
 import cv2
 import numpy as np
-from tensorflow.keras.utils import to_categorical, Sequence
-from .constants import NUM_CLASSES
-from .utils import resize_image
+import pandas as pd
+from tensorflow.python.keras.utils import Sequence
+from .utils import decode_rle, check_square_size, ImageMaskDownsampler
 
 
-def load_image(image_file_path, scale=None):
+def load_image(image_file_path, size=None):
     """
     Loads an image.
 
     :param image_file_path: path to the image
-    :param scale: if not `None`, the image is resized
-           using this scale
+    :param size: tuple `(width, height)`, containing
+                 the target size
     :return: image as numpy array
     """
 
@@ -24,8 +24,8 @@ def load_image(image_file_path, scale=None):
     if image is None:
         raise FileNotFoundError(f'Image {image_file_path} not found.')
 
-    if scale is not None:
-        image = resize_image(image, scale)
+    if size is not None:
+        image = cv2.resize(image, size)
 
     # change volume (n, m) to (n, m, 1)
     return np.expand_dims(image, axis=2) if len(image.shape) == 2 else image
@@ -34,7 +34,7 @@ def load_image(image_file_path, scale=None):
 class ImageBatchGenerator(Sequence):
     """
     Batch image generator. Iterable where each item
-    contains one batch of images and labels (as a tuple
+    contains one batch of images and target masks (as a tuple
     of two numpy arrays). Each pass through the generator
     (triggered by `self.on_epoch_end`) reshuffles the order
     of images in the batches.
@@ -44,29 +44,38 @@ class ImageBatchGenerator(Sequence):
     This generator supports parallel processing.
     """
     # TODO: use mean image
+    # TODO: handle special case for downsampling mask (1, 1) for speed
 
-    def __init__(self, image_directory, image_labels,
-                 batch_size=32, shuffle=True, image_scale=None):
+    def __init__(self, image_directory, image_rle_masks, mask_size,
+                 image_size=None, batch_size=32, shuffle=True):
         """
         Initiates the class.
 
         :param image_directory: path to the image directory
-        :param image_labels: dictionary `{image_id: label,}`
-                             containing all images that should
-                             be included in the generator.
+        :param encoded_masks: dictionary `{image_id: rle,}` containing
+                              all images and their encoded masks that
+                              should be included in the generator.
+        param mask_size: tuple `(width, height)` defining the resolution
+                         of the model target masks
+        :param image_size: if not `None`, loaded images will be resized;
+                           expecting tuple `(width, height)`
         :param batch_size: size of one image batch
-        :param shuffle: if `True`, reshuflles image id indexes
+        :param shuffle: if `True`, reshufles image id indexes
                         making different image/batch order for each epoch
-        :param image_scale: if not `None`, the images are resized
-                            using the scale value
         """
 
+        for size in (mask_size, image_size):
+            if size is not None:
+                check_square_size(size)
+
         self._image_directory = image_directory
-        self._image_labels = image_labels
-        self._image_ids = list(image_labels.keys())
+        self._image_rle_masks = image_rle_masks
+        self._image_ids = list(image_rle_masks.keys())
         self._batch_size = batch_size
         self._shuffle = shuffle
-        self._image_scale = image_scale
+        self._image_size = image_size
+        self._mask_size = mask_size
+        self._mask_downsampler = ImageMaskDownsampler(output_size=mask_size)
         self.on_epoch_end()
 
     def __len__(self):
@@ -77,7 +86,7 @@ class ImageBatchGenerator(Sequence):
         :return: length
         """
 
-        return int(np.ceil(len(self._image_labels) / self._batch_size))
+        return int(np.ceil(len(self._image_rle_masks) / self._batch_size))
 
     def _check_index(self, index):
         """
@@ -138,14 +147,28 @@ class ImageBatchGenerator(Sequence):
         """
 
         pixel_sum = pixel_count = 0
-        image_file_paths = self._get_image_file_paths(self._image_labels.keys())
+        image_file_paths = self._get_image_file_paths(self._image_rle_masks.keys())
 
         for image_file_path in image_file_paths:
-            image = load_image(image_file_path, scale=self._image_scale) / 255
+            image = load_image(image_file_path, size=self._image_size) / 255
             pixel_sum += image.sum()
             pixel_count += image.size
 
         return pixel_sum / pixel_count
+
+    def _get_image_mask(self, rle):
+        """
+        Creates a all-zeros mask or decodes non-null
+        rle. The mask is converterd to a correct shape.
+
+        :param rle: string with an rle mask
+        :return: mask as a numpy array
+        """
+
+        if pd.isnull(rle):
+            return np.zeros(shape=self._mask_size)
+
+        return self._mask_downsampler.downsample(decode_rle(rle))
 
     def _generate_data(self, selected_image_ids):
         """
@@ -157,11 +180,14 @@ class ImageBatchGenerator(Sequence):
 
         image_file_paths = self._get_image_file_paths(selected_image_ids)
 
-        labels = [self._image_labels[image_id] for image_id in selected_image_ids]
-        images = [load_image(image_file_path, scale=self._image_scale)
+        # ravel to 1d
+        masks = [self._get_image_mask(self._image_rle_masks[image_id]).ravel()
+                 for image_id in selected_image_ids]
+
+        images = [load_image(image_file_path, size=self._image_size)
                   for image_file_path in image_file_paths]
 
         # return x, y
         return (
             np.array(images).astype('float32') / 255,
-            to_categorical(labels, num_classes=NUM_CLASSES))
+            np.array(masks).astype('uint8'))
