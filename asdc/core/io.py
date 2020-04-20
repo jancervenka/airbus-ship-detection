@@ -27,6 +27,8 @@ def load_image(image_file_path, size=None):
     if size is not None:
         image = cv2.resize(image, size)
 
+    check_square_size(image.shape)
+
     # change volume (n, m) to (n, m, 1)
     return np.expand_dims(image, axis=2) if len(image.shape) == 2 else image
 
@@ -63,10 +65,6 @@ class ImageBatchGenerator(Sequence):
         :param shuffle: if `True`, reshufles image id indexes
                         making different image/batch order for each epoch
         """
-
-        for size in (mask_size, image_size):
-            if size is not None:
-                check_square_size(size)
 
         self._image_directory = image_directory
         self._image_rle_masks = image_rle_masks

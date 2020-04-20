@@ -171,7 +171,7 @@ class Pipeline:
         # TODO: change model to sigmoid/binary cross entropy
         # TODO: pos share from config
         n_output = MASK_SIZE[0] ** 2
-        model = MaskDetection._create_model(image_shape=(128, 128, 3), n_output=n_output)
+        model = MaskDetection.create_model(image_shape=(128, 128, 3), n_output=n_output)
         model.fit_generator(
             generator=generator_train,
             validation_data=generator_val,

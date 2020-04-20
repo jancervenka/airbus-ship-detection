@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # 2020, Jan Cervenka
 
+import numpy as np
+
 
 class MockRedis(dict):
     """
@@ -52,3 +54,65 @@ class MockRedis(dict):
             return str(self[name]).encode()
 
         return None
+
+    def lrange(self, queue_name, start, end):
+        """
+        Retrieves values from `queue_name` in a slice
+        between the `start` and `end` (incluseive).
+
+        :param queue_name: name of the queue
+        :param start: slice start
+        :param end: slice end
+
+        :return: list of selected values
+        """
+
+        # including the end index
+        if queue_name in self:
+            return [str(x).encode() for x in self[queue_name][start:end + 1]]
+
+        # redis returns empty list when queue does not exists
+        return []
+
+    def ltrim(self, queue_name, start, end):
+        """
+        Removes all values from `queue_name` not within the slice
+        between the `start` and `end` (inclusive).
+
+        :param queue_name: name of the queue
+        :param start: slice start
+        :param end: slice end
+        """
+
+        self[queue_name] = self.lrange()
+
+
+class MockKerasModel:
+    """
+    Mocks Keras model.
+    """
+
+    def __init__(self, image_shape, n_output):
+        """
+        Initiates the class.
+
+        :param image_shape: expected shape of input images
+        :param n_output: number of units in the output layer
+        """
+
+        self.input_shape = (None,) + image_shape
+        self._n_output = n_output
+
+    def predict(self, x):
+        """
+        Mocks the model forward pass.
+
+        :param x: input data
+        :return: array containing the output layer result
+        """
+
+        if self.input_shape[1:] != x.shape[1:]:
+            raise ValueError(f'Input shape {x.shape[1:]} not compatible with '
+                             f'{self.input_shape[1:]}.')
+
+        return np.zeros(shape=(x.shape[0], self._n_output), dtype='float32') + 0.5

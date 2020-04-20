@@ -10,6 +10,17 @@ import pandas as pd
 from .constants import (DEFAULT_IMAGE_SIZE, IMAGE_ID_COL, RLE_MASK_COL)
 
 
+def check_image_rgb(image):
+    """
+    Raises an exception if `image` is not an RGB array.
+
+    :param image: numpy array containing the image
+    """
+
+    if len(image.shape) != 3 or image.shape[2] != 3:
+        raise ValueError('Only RGB images are supported.')
+
+
 def check_square_size(size):
     """
     Raises an exception if `size` is not a square.

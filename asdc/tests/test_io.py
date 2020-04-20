@@ -47,6 +47,16 @@ class LoadImageTest(TestCase):
         expected = np.zeros(shape=(10, 10, 1))
         np.testing.assert_array_equal(result, expected)
 
+    @mock.patch('cv2.imread', lambda _: np.zeros(shape=(19, 20)))
+    def test_load_not_square(self):
+        """
+        Test that an exception is reaised if a non-square image
+        is loaded.
+        """
+
+        with self.assertRaises(ValueError):
+            _ = load_image('test')
+
 
 class ImageBatchGeneratorTest(TestCase):
     """

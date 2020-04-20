@@ -11,7 +11,6 @@ from tensorflow.python.keras.layers import (Dense, Activation, Conv2D,
                                             MaxPooling2D, Flatten, Dropout)
 
 
-NUM_CLASSES = 2
 L2_LAMBDA = 0.01
 DROPOUT = 0.25
 
@@ -21,12 +20,12 @@ class MaskDetection:
     """
 
     @staticmethod
-    def _create_model(image_shape, n_output):
+    def create_model(image_shape, n_output):
         """
         """
 
         optimizer = RMSprop(lr=0.0001, decay=1e-6)
-        image_shape = image_shape + (1,) if len(image_shape) < 3 else image_shape
+        image_shape = image_shape + (3,) if len(image_shape) == 2 else image_shape
 
         i = m = Input(shape=image_shape)
 

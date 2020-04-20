@@ -10,7 +10,30 @@ from unittest import TestCase, main
 from ..core.constants import IMAGE_ID_COL, RLE_MASK_COL, DEFAULT_IMAGE_SIZE
 from ..core.utils import (decode_rle, rescale, check_square_size,
                           get_image_rle_masks, decode_image_b64,
-                          ImageMaskDownsampler)
+                          check_image_rgb, ImageMaskDownsampler)
+
+
+class CheckImageRgbTest(TestCase):
+    """
+    Tests `utils.check_image_rgb` function.
+    """
+
+    def test_is_rgb(self):
+        """
+        Tests that exception is not raised.
+        """
+
+        test_case_image = np.zeros(shape=(10, 10, 3))
+        check_image_rgb(test_case_image)
+
+    def test_not_rgb(self):
+        """
+        Tests that exception is raised.
+        """
+
+        for test_case_shape in ((10, 10), (20, 20, 1)):
+            with self.assertRaises(ValueError):
+                check_square_size(np.zeros(shape=test_case_shape))
 
 
 class CheckSquareSizeTest(TestCase):

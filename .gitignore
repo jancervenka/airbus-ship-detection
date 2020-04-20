@@ -1,7 +1,7 @@
-data/train_v2/*.jpg
-*.ipynb_checkpoints
 __pycache__
 .vscode
+.pytest_cache
+.coverage
+*.ipynb_checkpoints
 model_files
 notebooks
-.pytest_cache
