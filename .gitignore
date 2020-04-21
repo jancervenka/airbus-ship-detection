@@ -3,5 +3,8 @@ __pycache__
 .pytest_cache
 .coverage
 *.ipynb_checkpoints
+*.egg-info
 model_files
 notebooks
+dist
+build
