@@ -14,6 +14,14 @@ The package can be installed using the `setup.py`.
 python setup.py install
 ```
 
+## Building the Image
+
+The package can be build as a Docker image.
+
+```
+sudo docker build . -t asdc
+```
+
 ## Tests
 
 Unit tests can run using `pytest`. `FutureWarning` and `DeprecationWarning` warnings
