@@ -34,7 +34,7 @@ def run_backend(args):
     model = MockKerasModel(image_shape=(128, 128, 3), n_output=1)
 
     db = redis.StrictRedis(
-        redis_host=REDIS_HOST, redis_port=REDIS_PORT, db=0)
+        host=REDIS_HOST, port=REDIS_PORT, db=0)
 
     request_processor = RequestProcessor(db=db, model=model)
     request_processor.run()

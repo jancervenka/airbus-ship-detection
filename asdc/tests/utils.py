@@ -10,6 +10,20 @@ class MockRedis(dict):
     Class for mocking Redis store.
     """
 
+    @staticmethod
+    def _encode(value):
+        """
+        Redis stores strings in encoded bytes.
+
+        :param value: value to be encoded
+        :return :encoded value (if not `float` or `int)
+        """
+
+        if isinstance(value, (int, float, bytes)):
+            return value
+        else:
+            return str(value).encode()
+
     def rpush(self, queue_name, value):
         """
         Pushes `value` to a queue specified by `queue_name`.
@@ -21,7 +35,7 @@ class MockRedis(dict):
         if queue_name not in self:
             self[queue_name] = []
 
-        self[queue_name].append(value)
+        self[queue_name].append(self._encode(value))
 
     def set(self, name, value):
         """
@@ -31,7 +45,7 @@ class MockRedis(dict):
         :param value: value to be stored
         """
 
-        self[name] = value
+        self[name] = self._encode(value)
 
     def delete(self, name):
         """
@@ -51,7 +65,7 @@ class MockRedis(dict):
         """
 
         if name in self:
-            return str(self[name]).encode()
+            return self[name]
 
         return None
 
@@ -69,7 +83,7 @@ class MockRedis(dict):
 
         # including the end index
         if queue_name in self:
-            return [str(x).encode() for x in self[queue_name][start:end + 1]]
+            return self[queue_name][start:end + 1]
 
         # redis returns empty list when queue does not exists
         return []
@@ -84,7 +98,7 @@ class MockRedis(dict):
         :param end: slice end
         """
 
-        self[queue_name] = self.lrange()
+        self[queue_name] = self.lrange(queue_name, start, end)
 
 
 class MockKerasModel:

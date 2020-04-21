@@ -107,7 +107,7 @@ class RequestProcessor:
         """
 
         for _, request_id in nok_requests:
-            self._db.set(request_id, {'error': 'image_not_compatible'})
+            self._db.set(request_id, json.dumps({'error': 'image_not_compatible'}))
 
     def _process_ok_requests(self, ok_requests):
         """
@@ -127,7 +127,7 @@ class RequestProcessor:
             # TODO: predict class? threshold the results?
             predictions = self._model.predict(images).any(axis=1).tolist()
             for prediction, request_id in zip(predictions, request_ids):
-                self._db.set(request_id, {'prediction': float(prediction)})
+                self._db.set(request_id, json.dumps({'prediction': float(prediction)}))
 
     def _pop_queue(self, n):
         """

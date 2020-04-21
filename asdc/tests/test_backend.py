@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # 2020, Jan Cervenka
 
+import json
 import numpy as np
 from unittest import TestCase, main
 from .utils import MockRedis, MockKerasModel
@@ -161,7 +162,7 @@ class BackendProcessorTest(TestCase):
         self._request_processor._process_nok_requests(test_case_nok_requests)
 
         for key in ('t_1', 't_2'):
-            self.assertDictEqual(self._db[key], {'error': 'image_not_compatible'})
+            self.assertDictEqual(json.loads(self._db[key]), {'error': 'image_not_compatible'})
 
         self._db.delete('t_1')
         self._db.delete('t_2')
@@ -179,7 +180,7 @@ class BackendProcessorTest(TestCase):
         # tests one requests
         test_case_ok_requests = ((self._test_image, 't_3'),)
         self._request_processor._process_ok_requests(test_case_ok_requests)
-        self.assertDictEqual(self._db['t_3'], {'prediction': 1.0})
+        self.assertDictEqual(json.loads(self._db['t_3']), {'prediction': 1.0})
 
         # tests n requests
         test_case_ok_requests = ((self._test_image, 't_4'),
@@ -188,7 +189,7 @@ class BackendProcessorTest(TestCase):
 
         # test everything is stored, then cleaup
         for request_id in ('t_3', 't_4', 't_5'):
-            self.assertDictEqual(self._db[request_id], {'prediction': 1.0})
+            self.assertDictEqual(json.loads(self._db[request_id]), {'prediction': 1.0})
             self._db.delete(request_id)
 
 
