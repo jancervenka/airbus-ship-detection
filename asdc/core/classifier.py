@@ -17,11 +17,16 @@ DROPOUT = 0.25
 
 class MaskDetection:
     """
+    Class defines the neural model.
     """
 
     @staticmethod
     def create_model(image_shape, n_output):
         """
+        Creates the model instance and compiles it.
+
+        :param image_shape: tuple defining the shape of the input images
+        :param n_output: number of output units
         """
 
         optimizer = RMSprop(lr=0.0001, decay=1e-6)
@@ -90,9 +95,3 @@ class MaskDetection:
 #                       metrics=['accuracy'])
 
 #         return model
-
-
-# if __name__ == '__main__':
-#     from tensorflow.python.keras.utils import plot_model
-#     plot_model(MaskDetection._create_model_((128, 128, 3), 2), to_file='/home/honza/m1.png')
-#     plot_model(MaskDetection._create_model((128, 128, 3), 1), to_file='/home/honza/m2.png')
