@@ -116,6 +116,7 @@ class MockKerasModel:
 
         self.input_shape = (None,) + image_shape
         self._n_output = n_output
+        self.metrics_names = ['loss', 'accuracy']
 
     def predict(self, x):
         """
@@ -130,3 +131,19 @@ class MockKerasModel:
                              f'{self.input_shape[1:]}.')
 
         return np.zeros(shape=(x.shape[0], self._n_output), dtype='float32') + 0.5
+
+    @staticmethod
+    def fit_generator(*args, **kwargs):
+        """
+        Mocks the `fit_generator` method.
+        """
+        pass
+
+    @staticmethod
+    def evaluate_generator(generator):
+        """
+        Mocks the `evaluate_generator` method.
+
+        :return: 0
+        """
+        return [0, 0]

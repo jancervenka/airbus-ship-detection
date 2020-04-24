@@ -90,6 +90,15 @@ class ImageBatchGeneratorTest(TestCase):
 
         self.assertTrue(len(self._gen), 2)
 
+    def test_index_slice(self):
+        """
+        Tests `IndexError` is raised when using
+        slice indexing.
+        """
+
+        with self.assertRaises(IndexError):
+            self._gen[0:2]
+
     def test_index_out_of_bounds(self):
         """
         Tests `IndexError` is raised when
@@ -169,6 +178,23 @@ class ImageBatchGeneratorTest(TestCase):
 
             np.testing.assert_array_equal(result_y, expected_y)
             np.testing.assert_array_almost_equal(result_x, expected_x, decimal=6)
+
+    @mock.patch('cv2.imread', _mock_imread)
+    def test_conjure(self):
+        """
+        Tests that `io.ImageBatchGenerator` correctly materializes
+        all the data.
+        """
+
+        result_x, result_y = self._gen.conjure()
+        expected_shape_x = (6, 16, 16, 3)
+        expected_shape_y = (6, 16)
+
+        tests = ((result_x.shape, expected_shape_x),
+                 (result_y.shape, expected_shape_y))
+
+        for result, expected in tests:
+            self.assertTupleEqual(result, expected)
 
 
 class ImageBatchGeneratorShuffleTest(TestCase):

@@ -3,16 +3,24 @@
 # 2020, Jan Cervenka
 
 import os
+import json
 import logging
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-from .utils import get_image_rle_masks
-from .constants import RLE_MASK_COL, IMAGE_ID_COL, IMAGE_SIZE, MASK_SIZE
+from tensorflow.python.keras.backend import clear_session
+from .utils import get_image_rle_masks, image_rle_masks_to_dict
 from .classifier import MaskDetection
+from .optimization import RandomSearch
 from .io import ImageBatchGenerator
+from .constants import (RLE_MASK_COL, IMAGE_SIZE, MASK_SIZE, IMAGE_SHAPE,
+                        MODEL_FILE_NAME)
+
+PARAM_GRID = {
+    'lr': [0.0001, 0.01, 0.0005],
+    'n_dense': [512, 1024]}
 
 
 class BalancedImageRleMasks:
@@ -20,6 +28,7 @@ class BalancedImageRleMasks:
     Class containing functions for downsampling
     and balancing the dataset.
     """
+    _to_dict = image_rle_masks_to_dict
 
     @staticmethod
     def _sample_class(image_rle_masks, select_positive, sample_size):
@@ -72,43 +81,38 @@ class BalancedImageRleMasks:
         train, val = train_test_split(train)
         return train, val, test
 
-    @staticmethod
-    def _to_dict(image_rle_masks):
-        """
-        Converts `image_rle_masks` dataframe to a dictionary
-
-        :param image_rle_masks: dataframe containing an image mask for each id
-        :return: `image_rle_masks` as a dictionary
-        """
-
-        return image_rle_masks.set_index(IMAGE_ID_COL).to_dict()[RLE_MASK_COL]
-
     @classmethod
-    def create(cls, image_rle_masks, sample_size, pos_share=0.5, as_dict=True):
+    def create(cls, image_rle_masks, sample_size, pos_share=0.5, as_dict=True, split=True):
         """
-        Downsamples `image_rle_masks`, balance the classes
-        and splits the data into training, validation, and test.
+        Downsamples `image_rle_masks` and balance the classes.
 
         :param image_rle_masks: dataframe containing an image mask for each id
         :param sample_size: size of the downsampled set
         :param pos_share: share of the non-zero masks
-        :param as_dict: if `True` result is returned as a tuple of dictionaries
-        :return: tuple of three dataframes or dictionaries containing the
-                 training, validation, and test image masks
+        :param as_dict: if `True`, the result is converted to a dictionary
+        :param split: if `True`, the result is split into training, test, validation
+        :return: dictionary/dataframe or tuple (when `split=True`) of
+                 dictionaries/dataframe containing the image masks
         """
 
-        splits = cls._split(cls._balance(image_rle_masks, sample_size, pos_share))
+        selected = cls._balance(image_rle_masks, sample_size, pos_share)
+        if split:
+            splits = cls._split(cls._balance(image_rle_masks, sample_size, pos_share))
+            return tuple(map(cls._to_dict, splits)) if as_dict else splits
 
-        if as_dict:
-            return tuple(map(cls._to_dict, splits))
         else:
-            return splits
+            return cls._to_dict(selected) if as_dict else selected
 
 
 class Pipeline:
     """
     Class containing model trainig pipeline.
     """
+    # TODO: image size mask size to config
+    # TODO: log loss/metrics history to json
+    # TODO: assure training and random search sets are different
+    # TODO: spliting train val is enough?
+    # TODO: assure sample size is enough for cv/random search, batch size
 
     def __init__(self, cfg):
         """
@@ -119,13 +123,15 @@ class Pipeline:
 
         np.random.seed(0)
         self._cfg = cfg
+        self._n_jobs = None
+        self._training_datetime = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     def _init_logger(self):
         """
         Initiates the logger.
         """
 
-        log_file_name = '{}.log'.format(datetime.now().strftime('%Y%m%d_%H%M%S'))
+        log_file_name = '{}.log'.format(self._training_datetime)
         log_directory = self._cfg.get('common', 'log_directory')
         log_file_path = os.path.join(log_directory, log_file_name)
         os.makedirs(log_directory, exist_ok=True)
@@ -137,53 +143,133 @@ class Pipeline:
 
     def _get_image_rle_masks(self):
         """
+        Loads `ground_truth` and create image RLE masks from it.
+
+        :return: dataframe containing image ids and their masks
         """
+
+        logging.info('Loading image masks.')
 
         return get_image_rle_masks(
             pd.read_csv(self._cfg.get('data', 'ground_truth_file')))
 
-    def _init_generator(self, image_masks):
+    def _init_generator(self, image_rle_masks):
         """
+        Creates an `ImageBatchGenerator` instance.
+
+        :param image_rle_masks: dictionary containing image ids and masks
+                                that should be included in the generator
+        :return: `ImageBatchGenerator` instance
         """
 
         return ImageBatchGenerator(
             image_directory=self._cfg.get('data', 'image_directory'),
-            image_rle_masks=image_masks,
+            image_rle_masks=image_rle_masks,
             mask_size=MASK_SIZE,
             image_size=IMAGE_SIZE)
 
+    def _find_best_params(self):
+        """
+        Runs the random search optimization.
+
+        :return: `optimization.RandomSearch` instance containing
+                 the best hyperparameters.
+        """
+        logging.info('Running random search.')
+
+        image_rle_masks = BalancedImageRleMasks.create(
+            self._get_image_rle_masks(),
+            sample_size=self._cfg.getint('random_search', 'sample_size'),
+            pos_share=self._cfg.getfloat('training', 'positive_share'),
+            split=False,
+            as_dict=False)
+
+        random_search = RandomSearch(
+            model_factory=MaskDetection.create_model,
+            image_directory=self._cfg.get('data', 'image_directory'),
+            image_shape=IMAGE_SIZE + (3, ),
+            param_grid=json.loads(self._cfg.get('random_search', 'param_grid')),
+            n_param_samples=self._cfg.getint('random_search', 'n_param_samples'),
+            cv=self._cfg.getint('random_search', 'cv'),
+            epochs=2,
+            n_jobs=self._n_jobs)
+
+        random_search.fit(image_rle_masks)
+
+        logging.info(f'Random search complete, best_params={random_search.best_params}.')
+        return random_search
+
     def _train(self):
         """
+        Trains the model.
         """
 
-        logging.info('Hello')
+        params = {}
+        if self._cfg.getboolean('training', 'use_random_search'):
+            params = self._find_best_params().best_params
 
-        xy_train, xy_val, xy_test = BalancedImageRleMasks.create(
+        logging.info('Training the final model.')
+
+        image_rle_mask_splits = BalancedImageRleMasks.create(
             image_rle_masks=self._get_image_rle_masks(),
             sample_size=self._cfg.getint('training', 'sample_size'),
-            pos_share=0.5)
+            pos_share=self._cfg.getfloat('training', 'positive_share'))
 
-        generator_train = self._init_generator(xy_train)
-        generator_val = self._init_generator(xy_val)
+        gen_train, gen_val, gen_test = [self._init_generator(xy)
+                                        for xy in image_rle_mask_splits]
 
         logging.info('Generators ready.')
+        clear_session()
+        model = MaskDetection.create_model(
+            image_shape=IMAGE_SHAPE, n_output=MASK_SIZE[0] ** 2, **params)
 
-        # TODO: change model to sigmoid/binary cross entropy
-        # TODO: pos share from config
-        n_output = MASK_SIZE[0] ** 2
-        model = MaskDetection.create_model(image_shape=(128, 128, 3), n_output=n_output)
         model.fit_generator(
-            generator=generator_train,
-            validation_data=generator_val,
-            use_multiprocessing=True,
-            workers=mp.cpu_count(),
+            generator=gen_train,
+            validation_data=gen_val,
+            use_multiprocessing=(self._n_jobs > 1),
+            workers=self._n_jobs,
             verbose=1,
-            epochs=15)
-        model.save('/home/honza/airbus-ship-detection/model_files/asdc_1_2000.h5')
+            epochs=self._cfg.getint('training', 'epochs'))
+
+        # TODO: log evaluation
+        model.evaluate_generator(gen_test)
+        self._save_model(model)
+
+    def _save_model(self, model):
+        """
+        Saves `model` to a file.
+
+        :param model: model to save.
+        """
+
+        model_file_name = MODEL_FILE_NAME.format(self._training_datetime)
+        model_file_path = os.path.join(
+            self._cfg.get('data', 'model_directory'), model_file_name)
+        model.save(model_file_path)
+        logging.info(f'Model stored to {model_file_path}.')
+
+    def _get_n_jobs(self):
+        """
+        Gets the number of workers to use for training.
+
+        :return: number of jobs
+        """
+
+        if self._cfg.getboolean('common', 'multiprocessing'):
+            n_jobs = mp.cpu_count()
+        else:
+            n_jobs = 1
+
+        logging.info(f'Multiprocessing={n_jobs > 1}. Using n_jobs={n_jobs}.')
+
+        return n_jobs
 
     def run(self):
         """
+        Runs the training.
         """
 
         self._init_logger()
+        logging.info('Hello from ASDC training!')
+        self._n_jobs = self._get_n_jobs()
         self._train()

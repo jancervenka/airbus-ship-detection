@@ -93,6 +93,9 @@ class ImageBatchGenerator(Sequence):
         :param index: index for `self.__getitem__`
         """
 
+        if not isinstance(index, int):
+            raise IndexError(f'Only integer indexing is supported.')
+
         if index >= len(self):
             raise IndexError(f'Generator contains only {len(self)} batches.')
 
@@ -189,3 +192,16 @@ class ImageBatchGenerator(Sequence):
         return (
             np.array(images).astype('float32') / 255,
             np.array(masks).astype('uint8'))
+
+    def conjure(self):
+        """
+        Materialize the entire generator. This
+        may require a massive amount of memory.
+
+        :return: tuple of image and mask arrays
+        """
+
+        return tuple(np.concatenate(x) for x in zip(*self))
+        # this is equal to:
+        # images, masks = zip(*self)
+        # return np.concatenate(images), np.concatenate(masks)

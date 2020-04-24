@@ -90,6 +90,17 @@ def get_image_rle_masks(ground_truth):
     return image_rle_masks.reset_index()
 
 
+def image_rle_masks_to_dict(image_rle_masks):
+    """
+    Converts `image_rle_masks` dataframe to a dictionary
+
+    :param image_rle_masks: dataframe containing an image mask for each id
+    :return: `image_rle_masks` as a dictionary
+    """
+
+    return image_rle_masks.set_index(IMAGE_ID_COL).to_dict()[RLE_MASK_COL]
+
+
 def decode_image_b64(image_b64):
     """
     Creates numpy array from base64 string containing an image.

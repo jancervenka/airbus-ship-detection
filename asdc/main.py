@@ -20,22 +20,18 @@ def _create_arg_parser():
                         version='version: "{0}"'.format(version.__version__))
 
     subparsers = parser.add_subparsers()
-    parser_app = subparsers.add_parser('app')
-    parser_app.add_argument('-d', '--debug', action='store_const',
-                            default=False, const=True, dest='debug',
-                            help='app debug mode')
-
-    parser_backend = subparsers.add_parser('backend')
-    parser_backend.add_argument('-m', '--model', type=str, required=True,
+    parser_service = subparsers.add_parser('service')
+    parser_service.add_argument('-d', '--debug', action='store_const',
+                                default=False, const=True, dest='debug',
+                                help='app debug mode')
+    parser_service.add_argument('-m', '--model', type=str, required=True,
                                 dest='model', help='Path to the model h5 file.')
 
     parser_training = subparsers.add_parser('training')
     parser_training.add_argument('-c', '--config', type=str, required=True,
                                  dest='config', help='path to the config file')
 
-    parser_app.set_defaults(func=asdc.service.run_app)
-    parser_backend.set_defaults(func=asdc.service.run_backend)
-    # parser_backend.set_defaults(func=lambda args: print('hello backend, model', args.model))
+    parser_service.set_defaults(func=asdc.service.run_service)
     parser_training.set_defaults(func=asdc.core.run_training)
 
     return parser

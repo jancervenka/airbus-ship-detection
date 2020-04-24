@@ -3,6 +3,7 @@
 # 2020, Jan Cervenka
 
 import redis
+import multiprocessing as mp
 from .app import create_app
 from .backend import RequestProcessor
 from .constants import (REDIS_HOST, REDIS_PORT,
@@ -38,3 +39,16 @@ def run_backend(args):
 
     request_processor = RequestProcessor(db=db, model=model)
     request_processor.run()
+
+
+def run_service(args):
+    """
+    Runs the app and the backend as two processed.
+    """
+
+    process_backend = mp.Process(target=run_backend, args=(args,))
+    process_backend.start()
+
+    process_app = mp.Process(target=run_app, args=(args,))
+    process_app.start()
+    # process_app.join()
