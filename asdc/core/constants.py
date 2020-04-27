@@ -12,4 +12,4 @@ IMAGE_ID_COL = 'ImageId'
 RLE_MASK_COL = 'EncodedPixels'
 
 MODEL_FILE_NAME = 'asdc_{}.h5'
-MODEL_METADATA_FILE_NAME = 'asdc_{}.json'
+MODEL_HISTORY_FILE_NAME = 'asdc_{}.json'

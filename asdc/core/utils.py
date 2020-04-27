@@ -10,6 +10,18 @@ import pandas as pd
 from .constants import (DEFAULT_IMAGE_SIZE, IMAGE_ID_COL, RLE_MASK_COL)
 
 
+def convert_history(history):
+    """
+    Converts datatypes in a model history dictionary
+    to builtin `float`.
+
+    :param history: model history dictionary
+    :return: history with values converted to float
+    """
+
+    return {k: list(map(float, v)) for k, v in history.items()}
+
+
 def check_image_rgb(image):
     """
     Raises an exception if `image` is not an RGB array.

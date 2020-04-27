@@ -11,16 +11,13 @@ import multiprocessing as mp
 from datetime import datetime
 from sklearn.model_selection import train_test_split
 from tensorflow.python.keras.backend import clear_session
-from .utils import get_image_rle_masks, image_rle_masks_to_dict
 from .classifier import MaskDetection
 from .optimization import RandomSearch
 from .io import ImageBatchGenerator
+from .utils import (get_image_rle_masks, image_rle_masks_to_dict,
+                    convert_history)
 from .constants import (RLE_MASK_COL, IMAGE_SIZE, MASK_SIZE, IMAGE_SHAPE,
-                        MODEL_FILE_NAME)
-
-PARAM_GRID = {
-    'lr': [0.0001, 0.01, 0.0005],
-    'n_dense': [512, 1024]}
+                        MODEL_FILE_NAME, MODEL_HISTORY_FILE_NAME)
 
 
 class BalancedImageRleMasks:
@@ -109,9 +106,7 @@ class Pipeline:
     Class containing model trainig pipeline.
     """
     # TODO: image size mask size to config
-    # TODO: log loss/metrics history to json
     # TODO: assure training and random search sets are different
-    # TODO: spliting train val is enough?
     # TODO: assure sample size is enough for cv/random search, batch size
 
     def __init__(self, cfg):
@@ -199,6 +194,36 @@ class Pipeline:
         logging.info(f'Random search complete, best_params={random_search.best_params}.')
         return random_search
 
+    def _save_model(self, model):
+        """
+        Saves `model` to a file.
+
+        :param model: model to save.
+        """
+
+        model_file_name = MODEL_FILE_NAME.format(self._training_datetime)
+        model_file_path = os.path.join(
+            self._cfg.get('data', 'model_directory'), model_file_name)
+        model.save(model_file_path)
+        logging.info(f'Model stored to {model_file_path}.')
+
+    def _save_history(self, history):
+        """
+        Saves the model training history to a json file.
+
+        :param history: model history dictionary
+        """
+
+        history_file_name = MODEL_HISTORY_FILE_NAME.format(
+            self._training_datetime)
+        history_file_path = os.path.join(
+            self._cfg.get('data', 'model_directory'), history_file_name)
+
+        with open(history_file_path, 'w') as f:
+            json.dump(convert_history(history), f, indent=4)
+
+        logging.info(f'History stored to {history_file_path}.')
+
     def _train(self):
         """
         Trains the model.
@@ -229,24 +254,13 @@ class Pipeline:
             use_multiprocessing=(self._n_jobs > 1),
             workers=self._n_jobs,
             verbose=1,
+            callbacks=MaskDetection.create_callbacks(),
             epochs=self._cfg.getint('training', 'epochs'))
 
         # TODO: log evaluation
         model.evaluate_generator(gen_test)
         self._save_model(model)
-
-    def _save_model(self, model):
-        """
-        Saves `model` to a file.
-
-        :param model: model to save.
-        """
-
-        model_file_name = MODEL_FILE_NAME.format(self._training_datetime)
-        model_file_path = os.path.join(
-            self._cfg.get('data', 'model_directory'), model_file_name)
-        model.save(model_file_path)
-        logging.info(f'Model stored to {model_file_path}.')
+        self._save_history(model.history.history)
 
     def _get_n_jobs(self):
         """

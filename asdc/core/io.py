@@ -159,7 +159,7 @@ class ImageBatchGenerator(Sequence):
 
     def _get_image_mask(self, rle):
         """
-        Creates a all-zeros mask or decodes non-null
+        Creates an all-zeros mask or decodes non-null
         rle. The mask is converterd to a correct shape.
 
         :param rle: string with an rle mask

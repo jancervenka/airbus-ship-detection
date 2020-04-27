@@ -10,7 +10,31 @@ from unittest import TestCase, main
 from ..core.constants import IMAGE_ID_COL, RLE_MASK_COL, DEFAULT_IMAGE_SIZE
 from ..core.utils import (decode_rle, rescale, check_square_size,
                           get_image_rle_masks, decode_image_b64,
-                          check_image_rgb, ImageMaskDownsampler)
+                          check_image_rgb, convert_history,
+                          ImageMaskDownsampler)
+
+
+class ConvertHistoryTest(TestCase):
+    """
+    Tests `utils.convert_history` function.
+    """
+
+    def test_convert_history(self):
+        """
+        Tests that the function produces an
+        identical history dictionary with the
+        correct datatypes.
+        """
+
+        test_case_history = {
+            'loss': [np.float64(0.1), np.float64(0.02)],
+            'val_loss': [np.float64(0.11), np.float64(0.019)]}
+
+        expected = {'loss': [0.1, 0.02], 'val_loss': [0.11, 0.019]}
+
+        self.assertDictEqual(
+            convert_history(test_case_history),
+            expected)
 
 
 class CheckImageRgbTest(TestCase):

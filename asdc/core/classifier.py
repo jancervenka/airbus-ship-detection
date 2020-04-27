@@ -3,6 +3,7 @@
 # 2020, Jan Cervenka
 
 from tensorflow.python.keras import Input
+from tensorflow.python.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.python.keras.optimizers import RMSprop
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras.regularizers import l2
@@ -18,8 +19,25 @@ class MaskDetection:
     """
     Class defines the neural model.
     """
-    # TODO: callbacks
     # TODO: lambda layer for zero mean?
+
+    @staticmethod
+    def create_callbacks():
+        """
+        Creats model callbacks.
+
+        :return: list of callbacks
+        """
+
+        return [
+            ReduceLROnPlateau(
+                monitor='val_loss',
+                patience=4,
+                factor=0.2),
+            EarlyStopping(
+                monitor='val_loss',
+                patience=10,
+                restore_best_weights=True)]
 
     @staticmethod
     def create_model(image_shape, n_output, n_dense=512, lr=0.0001):
@@ -37,25 +55,36 @@ class MaskDetection:
         optimizer = RMSprop(lr=lr, decay=1e-6)
         image_shape = image_shape + (3,) if len(image_shape) == 2 else image_shape
 
-        i = m = Input(shape=image_shape)
+        i = m = Input(shape=image_shape, name='input')
 
-        for n_filters in (32, 64):
-            m = Conv2D(n_filters, (3, 3), padding='same', kernel_regularizer=l2(L2_LAMBDA))(m)
+        for k, n_filters in enumerate((32, 64)):
+            m = Conv2D(
+                filters=n_filters,
+                kernel_size=(3, 3),
+                padding='same',
+                name=f'conv_{k}_0',
+                kernel_regularizer=l2(L2_LAMBDA))(m)
             m = Activation('relu')(m)
-            m = Conv2D(n_filters, (3, 3), kernel_regularizer=l2(L2_LAMBDA))(m)
+
+            m = Conv2D(
+                filters=n_filters,
+                kernel_size=(3, 3),
+                padding='same',
+                name=f'conv_{k}_1',
+                kernel_regularizer=l2(L2_LAMBDA))(m)
             m = Activation('relu')(m)
             m = MaxPooling2D(pool_size=(2, 2))(m)
             m = Dropout(DROPOUT)(m)
 
         m = Flatten()(m)
-        m = Dense(n_dense, kernel_regularizer=l2(L2_LAMBDA))(m)
+        m = Dense(n_dense, name='dense', kernel_regularizer=l2(L2_LAMBDA))(m)
         m = Activation('relu')(m)
         m = Dropout(0.5)(m)
-        m = Dense(n_output)(m)
+        m = Dense(n_output, name='mask_probability')(m)
         o = Activation('sigmoid')(m)
 
         model = Model(i, o)
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
-                      metrics=['accuracy'])
+                      metrics=['binary_accuracy'])
 
         return model
