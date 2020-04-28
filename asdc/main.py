@@ -39,7 +39,7 @@ def _create_arg_parser():
 
 def main():
     """
-    Runs ASDC system.
+    Runs the ASDC system.
     """
 
     args = _create_arg_parser().parse_args()

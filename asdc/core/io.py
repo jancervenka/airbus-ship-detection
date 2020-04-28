@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
-from tensorflow.python.keras.utils import Sequence
+from tensorflow.keras.utils import Sequence
 from .utils import decode_rle, check_square_size, ImageMaskDownsampler
 
 

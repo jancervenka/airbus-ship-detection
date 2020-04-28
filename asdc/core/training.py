@@ -10,7 +10,7 @@ import pandas as pd
 import multiprocessing as mp
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-from tensorflow.python.keras.backend import clear_session
+from tensorflow.keras.backend import clear_session
 from .classifier import MaskDetection
 from .optimization import RandomSearch
 from .io import ImageBatchGenerator
@@ -283,7 +283,11 @@ class Pipeline:
         Runs the training.
         """
 
-        self._init_logger()
-        logging.info('Hello from ASDC training!')
-        self._n_jobs = self._get_n_jobs()
-        self._train()
+        try:
+
+            self._init_logger()
+            logging.info('Hello from ASDC training!')
+            self._n_jobs = self._get_n_jobs()
+            self._train()
+        finally:
+            logging.shutdown()

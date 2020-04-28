@@ -5,9 +5,20 @@
 import cv2
 import time
 import json
+import logging
 import numpy as np
 from .constants import REQUEST_BATCH_SIZE, QUEUE_NAME, BACKEND_WAITING_SEC
 from ..core.utils import decode_image_b64, check_image_rgb
+
+
+def _init_logging():
+    """
+    Initiates the logging.
+    """
+
+    logging.basicConfig(
+        format='%(asctime)s : %(levelname)s : %(message)s',
+        level=logging.INFO)
 
 
 class RequestProcessor:
@@ -34,6 +45,7 @@ class RequestProcessor:
         :return: list of queue values (dictionaries
                  `{'id': request_id, 'image_b64': image_b64'}`)
         """
+        # filter items not in the `{'id': id 'image_b64': image_b64}`
 
         return list(map(
             json.loads,
@@ -90,13 +102,15 @@ class RequestProcessor:
         :return: tuple of two iterables `(ok, nok)`
         """
 
-        images_ids = (
-            (self._create_image(r['image_b64']), r['id']) for r in requests)
+        # this needs to be a list, otherwise ok filter consumes it
+        # and nok filter will have an empty generator
+        images_ids = [
+            (self._create_image(r['image_b64']), r['id']) for r in requests]
 
         ok = filter(lambda x: x[0] is not None, images_ids)
         nok = filter(lambda x: x[0] is None, images_ids)
 
-        return ok, nok
+        return list(ok), list(nok)
 
     def _process_nok_requests(self, nok_requests):
         """
@@ -118,14 +132,13 @@ class RequestProcessor:
         """
 
         # unziping makes always two lists of the same length
-        ok_requests = list(ok_requests)
         if ok_requests:
             images, request_ids = zip(*ok_requests)
             images = np.array(images)
 
             # TODO: use rle to encode the mask
             # TODO: predict class? threshold the results?
-            predictions = self._model.predict(images).any(axis=1).tolist()
+            predictions = self._model.predict(images).mean(axis=1).tolist()
             for prediction, request_id in zip(predictions, request_ids):
                 self._db.set(request_id, json.dumps({'prediction': float(prediction)}))
 
@@ -154,6 +167,12 @@ class RequestProcessor:
         Runs the backend processing.
         """
 
-        while True:
-            self._process_one_batch()
-            time.sleep(BACKEND_WAITING_SEC)
+        _init_logging()
+        try:
+            logging.info('ASDC backend is running.')
+            while True:
+                self._process_one_batch()
+                time.sleep(BACKEND_WAITING_SEC)
+        finally:
+            self._db.delete(QUEUE_NAME)
+            logging.shutdown()

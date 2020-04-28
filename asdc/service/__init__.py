@@ -30,9 +30,10 @@ def run_backend(args):
     Runs the request processing backend.
     """
 
-    # load_model(args.model)
-    from ..tests.utils import MockKerasModel
-    model = MockKerasModel(image_shape=(128, 128, 3), n_output=1)
+    # from ..tests.utils import MockKerasModel
+    # model = MockKerasModel(image_shape=(128, 128, 3), n_output=1)
+    from tensorflow.keras.models import load_model
+    model = load_model(args.model)
 
     db = redis.StrictRedis(
         host=REDIS_HOST, port=REDIS_PORT, db=0)

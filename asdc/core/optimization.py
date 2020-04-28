@@ -5,7 +5,7 @@
 import logging
 import functools
 import numpy as np
-from tensorflow.python.keras.backend import clear_session
+from tensorflow.keras.backend import clear_session
 from sklearn.model_selection import ParameterSampler, KFold
 from .io import ImageBatchGenerator
 from .utils import image_rle_masks_to_dict

@@ -180,7 +180,7 @@ class BackendProcessorTest(TestCase):
         # tests one requests
         test_case_ok_requests = ((self._test_image, 't_3'),)
         self._request_processor._process_ok_requests(test_case_ok_requests)
-        self.assertDictEqual(json.loads(self._db['t_3']), {'prediction': 1.0})
+        self.assertDictEqual(json.loads(self._db['t_3']), {'prediction': 0.5})
 
         # tests n requests
         test_case_ok_requests = ((self._test_image, 't_4'),
@@ -189,7 +189,7 @@ class BackendProcessorTest(TestCase):
 
         # test everything is stored, then cleaup
         for request_id in ('t_3', 't_4', 't_5'):
-            self.assertDictEqual(json.loads(self._db[request_id]), {'prediction': 1.0})
+            self.assertDictEqual(json.loads(self._db[request_id]), {'prediction': 0.5})
             self._db.delete(request_id)
 
 

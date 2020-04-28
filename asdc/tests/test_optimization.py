@@ -69,7 +69,7 @@ class RandomSearchTest(TestCase):
         """
 
         result = self._random_search._eval_params(
-            {'test': None}, self._test_image_rle_masks)
+            self._test_image_rle_masks, {'test': None})
 
         expected = {'mean_loss': 0, 'params': {'test': None}, 'losses': [0] * 5}
         self.assertDictEqual(result, expected)

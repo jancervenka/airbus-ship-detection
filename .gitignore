@@ -1,6 +1,6 @@
-__pycache__
+__pycache__/
 .vscode
-.pytest_cache
+.pytest_cache/
 .coverage
 *.ipynb_checkpoints
 *.egg-info

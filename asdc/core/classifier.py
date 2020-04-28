@@ -2,16 +2,15 @@
 # -*- coding: utf-8 -*-
 # 2020, Jan Cervenka
 
-from tensorflow.python.keras import Input
-from tensorflow.python.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.python.keras.optimizers import RMSprop
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.regularizers import l2
-from tensorflow.python.keras.layers import (Dense, Activation, Conv2D,
-                                            MaxPooling2D, Flatten, Dropout)
+from tensorflow.keras import Input
+from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.callbacks import (EarlyStopping, ReduceLROnPlateau)
+from tensorflow.keras.layers import (Dense, Activation, Conv2D, MaxPooling2D, Flatten, Dropout)
 
 
-L2_LAMBDA = 0.01
+L2_LAMBDA = 0.001
 DROPOUT = 0.25
 
 
@@ -40,7 +39,7 @@ class MaskDetection:
                 restore_best_weights=True)]
 
     @staticmethod
-    def create_model(image_shape, n_output, n_dense=512, lr=0.0001):
+    def create_model(image_shape, n_output, n_dense=512, lr=0.00005):
         """
         Creates the model instance and compiles it.
 
