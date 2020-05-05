@@ -55,17 +55,14 @@ in `config/training.cfg`.
 ## Building the Image
 
 The model service can be build as a Docker image. The image contains
-everything needed (the package itself, redis server and a `h5` model file). 
-The API is exposed via port `5000`.
+everything needed (the package itself, redis server and an `h5` file
+with a trained model). The API is exposed via port `5000`.
 
 To build the image:
 
 ```bash
 sudo docker build . -t asdc
 ```
-
-File `asdc.h5` with a trained model located in `model_files` directory is required to
-successfully build the image.
 
 To run the container:
 
