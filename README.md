@@ -10,6 +10,8 @@ model using REST API.
 
 Version: `0.1.0`
 
+![Tests](https://github.com/jancervenka/airbus-ship-detection/workflows/Tests/badge.svg)
+
 ## Project
 
 The project consists of two main packages `core` and `service`.
@@ -19,6 +21,8 @@ The `core` package defines the model architecture, optimization and training pro
 The `service` package serves the model via a simple REST API. The package consists of a
 lightweight Flask application implementing the API and a batch processing backend.
 Both the app and the backend run in independent processes and communicate using Redis.
+
+![Design](assets/design.svg "ASDC Design")
 
 ## Installation
 
